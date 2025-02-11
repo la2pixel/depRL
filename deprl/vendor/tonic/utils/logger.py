@@ -23,8 +23,11 @@ def get_sorted_folders(folders):
         except ValueError:
             return None
 
+    # Remove folders without dots
+    fixed_folders = [x for x in folders if x.count('.') >= 2]
+
     # Sort the strings using the custom sorting key
-    sorted_folders = sorted(folders, key=get_datetime_key)
+    sorted_folders = sorted(fixed_folders, key=get_datetime_key)
     return sorted_folders
 
 
@@ -52,8 +55,9 @@ def create_resumed_results_path(config, env):
         postfix = f".{env.unwrapped.model.name()}"
     folders = [x for x in os.walk(path)]
     if len(folders) != 0:
-        log(f"Found earlier run, continuing training: Path is: {path}")
+        log(f"Found earlier run, continuing training from {path}")
         folder = get_sorted_folders(folders[0][1])[-1]
+        log(f"Continuing training from {folder}")
         return os.path.join(path, folder)
     else:
         return (
