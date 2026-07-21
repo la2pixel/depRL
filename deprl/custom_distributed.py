@@ -79,6 +79,13 @@ class Sequential:
         terminations = []
         observations = []  # Observations for the actions selection.
         muscle_states = []
+        # env_info used to be received and thrown away. Wrappers like
+        # LatentActionPriorWrapper stash per-step diagnostics (e.g. how much of
+        # the action came from the decoded prior vs. the residual) in here --
+        # kept as a plain list of dicts, one per environment, same order as
+        # self.environments, so index i here lines up with index i in every
+        # other list below.
+        env_infos = []
 
         for i in range(len(self.environments)):
             ob, rew, term, env_info = self.environments[i].step(actions[i])
@@ -91,6 +98,7 @@ class Sequential:
             resets.append(reset)
 
             terminations.append(term)
+            env_infos.append(env_info)
 
             if reset:
                 ob = self.environments[i].reset()
@@ -107,6 +115,10 @@ class Sequential:
             rewards=np.array(rewards, np.float32),
             resets=np.array(resets, bool),
             terminations=np.array(terminations, bool),
+            # Left as a plain list, not np.array -- entries are dicts of
+            # scalars (heterogeneous keys/values), not a fixed-shape numeric
+            # field like the others above.
+            env_infos=env_infos,
         )
         return observations, muscle_states, infos
 
@@ -213,6 +225,7 @@ class Parallel:
         self.terminations_list = np.zeros(
             (self.worker_groups, self.workers_per_group), bool
         )
+        self.env_infos_list = [None for _ in range(self.worker_groups)]
 
         return np.concatenate(self.observations_list), np.concatenate(
             self.muscle_states_list
@@ -234,15 +247,22 @@ class Parallel:
             self.rewards_list[index] = infos["rewards"]
             self.resets_list[index] = infos["resets"]
             self.terminations_list[index] = infos["terminations"]
+            self.env_infos_list[index] = infos["env_infos"]
             self.muscle_states_list[index] = muscle_states
 
         observations = np.concatenate(self.observations_list)
         muscle_states = np.concatenate(self.muscle_states_list)
+        env_infos = [
+            env_info
+            for group_env_infos in self.env_infos_list
+            for env_info in group_env_infos
+        ]
         infos = dict(
             observations=np.concatenate(self.next_observations_list),
             rewards=np.concatenate(self.rewards_list),
             resets=np.concatenate(self.resets_list),
             terminations=np.concatenate(self.terminations_list),
+            env_infos=env_infos,
         )
         return observations, muscle_states, infos
 

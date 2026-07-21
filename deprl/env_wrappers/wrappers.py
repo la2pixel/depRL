@@ -45,7 +45,7 @@ class AbstractWrapper(gym.Wrapper, ABC):
         muscle_length + force_scale * muscle_force
         where force_scale is chosen by the user and the other
         variables are normalized by the encountered max and min
-        values.
+        
         """
         lce = self.muscle_lengths()
         f = self.muscle_forces()

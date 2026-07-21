@@ -1,3 +1,4 @@
+
 import os
 import time
 
@@ -10,6 +11,12 @@ from deprl.custom_test_environment import (
     test_scone,
 )
 from deprl.vendor.tonic import logger
+
+try:
+    import wandb
+    WANDB_AVAILABLE = True
+except ImportError:
+    WANDB_AVAILABLE = False
 
 if "ROBOHIVE_VERBOSITY" not in os.environ:
     os.environ["ROBOHIVE_VERBOSITY"] = "ALWAYS"
@@ -46,6 +53,18 @@ class Trainer:
     def run(self, params, steps=0, epochs=0, episodes=0):
         """Runs the main training loop."""
 
+        wandb_enabled = False
+        if WANDB_AVAILABLE and params.get("wandb"):
+            wb_cfg = params["wandb"]
+            wandb.init(
+                project=wb_cfg.get("project", "deprl"),
+                name=wb_cfg.get("name", None),
+                group=wb_cfg.get("group", None),
+                config=params,
+                resume="allow",
+            )
+            wandb_enabled = True
+
         start_time = last_epoch_time = time.time()
 
         # Start the environments.
@@ -75,8 +94,20 @@ class Trainer:
 
             # Take a step in the environments.
             observations, muscle_states, info = self.environment.step(actions)
-            if "env_infos" in info:
-                info.pop("env_infos")
+            env_infos = info.pop("env_infos", None)
+            if env_infos:
+                # Generic: log whatever scalar keys show up in any env's info
+                # dict (e.g. LatentActionPriorWrapper's compensation-tracking
+                # diagnostics), without needing to know their names ahead of
+                # time. A no-op for envs/configs that never populate info
+                # (env_infos is then a list of empty dicts, so `keys` is empty).
+                keys = set()
+                for env_info in env_infos:
+                    keys.update(env_info.keys())
+                for key in keys:
+                    values = [env_info[key] for env_info in env_infos if key in env_info]
+                    if values:
+                        logger.store(key, values, stats=True)
             self.agent.update(**info, steps=self.steps)
 
             scores += info["rewards"]
@@ -123,7 +154,8 @@ class Trainer:
                         ).lower()
                     ):
                         _ = test_dm_control(
-                            self.test_environment, self.agent, steps, params
+                            self.test_environment, self.agent, steps, params,
+                            test_episodes=self.test_episodes,
                         )
 
                     elif (
@@ -135,12 +167,14 @@ class Trainer:
                         ).lower()
                     ):
                         _ = test_scone(
-                            self.test_environment, self.agent, steps, params
+                            self.test_environment, self.agent, steps, params,
+                            test_episodes=self.test_episodes,
                         )
 
                     else:
                         _ = test_mujoco(
-                            self.test_environment, self.agent, steps, params
+                            self.test_environment, self.agent, steps, params,
+                            test_episodes=self.test_episodes,
                         )
 
                 # Log the data.
@@ -158,6 +192,19 @@ class Trainer:
                 logger.store("train/steps_per_second", sps)
                 last_epoch_time = time.time()
                 epoch_steps = 0
+
+                if wandb_enabled:
+                    current_log = logger.get_current_logger()
+                    wb_dict = {}
+                    for key, values in current_log.epoch_dict.items():
+                        if not isinstance(values, list):
+                            values = [values]
+                        try:
+                            wb_dict[key] = float(np.mean(values))
+                        except (TypeError, ValueError):
+                            pass
+                    if wb_dict:
+                        wandb.log(wb_dict, step=int(wb_dict.get("train/steps", self.steps)))
 
                 logger.dump()
 

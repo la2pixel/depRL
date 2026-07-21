@@ -54,9 +54,10 @@ def create_resumed_results_path(config, env):
         path = os.path.join(env.results_dir, config["tonic"]["name"])
         postfix = f".{env.unwrapped.model.name()}"
     folders = [x for x in os.walk(path)]
-    if len(folders) != 0:
+    sorted_folders = get_sorted_folders(folders[0][1]) if folders else []
+    if sorted_folders:
+        folder = sorted_folders[-1]
         log(f"Found earlier run, continuing training from {path}")
-        folder = get_sorted_folders(folders[0][1])[-1]
         log(f"Continuing training from {folder}")
         return os.path.join(path, folder)
     else:
