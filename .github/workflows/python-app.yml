@@ -2,18 +2,21 @@
 
 name: Python application
 
-on:
-  push:
-    branches: [ "main" , "dev"]
-    paths-ignore:
-      - "doc/**"
-      - "**/README.md"
-
-  pull_request:
-    branches: [ "main" , "dev"]
-    paths-ignore:
-      - "doc/**"
-      - "**/README.md"
+on: workflow_dispatch
+# Was push/pull_request-triggered:
+#   push:
+#     branches: [ "main" , "dev"]
+#     paths-ignore:
+#       - "doc/**"
+#       - "**/README.md"
+#   pull_request:
+#     branches: [ "main" , "dev"]
+#     paths-ignore:
+#       - "doc/**"
+# Disabled: this workflow tests against myosuite/generic MuJoCo, not
+# SCONE/Hyfydy (a licensed simulator not installable on a public runner),
+# so it can never pass on this fork -- it was just sending false-alarm
+# failure emails on every push.
 
 permissions:
   contents: read
