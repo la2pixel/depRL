@@ -60,6 +60,7 @@ class Trainer:
                 project=wb_cfg.get("project", "deprl"),
                 name=wb_cfg.get("name", None),
                 group=wb_cfg.get("group", None),
+                tags=wb_cfg.get("tags", None),
                 config=params,
                 resume="allow",
             )

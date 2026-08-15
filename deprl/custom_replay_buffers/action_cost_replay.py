@@ -11,8 +11,7 @@ class AdaptiveEnergyBuffer(Buffer):
     """
 
     def __init__(self, *args, **kwargs):
-        # User parameters ----------------
-        # num_acts needs to match your model!
+        # User parameters - num_acts needs to match your model!
         self.num_acts = kwargs.pop("num_acts")
         # smoothing parameter
         self.alpha = kwargs.pop("alpha", 0.8)
@@ -22,10 +21,10 @@ class AdaptiveEnergyBuffer(Buffer):
         self.lr = kwargs.pop("lr", 9e-4)
         # how much the learning rate decreased after a collapse
         self.lr_decimation = kwargs.pop("lr_decimation", 0.9)
-        # type of energy cost function
+        # type of energy cost fn
         self.cost_function = kwargs.pop("cost_function", 3)
 
-        # Initial values ----------------
+        # Initial values 
         self.action_cost = 0.0
         self.cdt_avg = 0
         self.score_avg = 0
@@ -59,6 +58,12 @@ class AdaptiveEnergyBuffer(Buffer):
             yield self._relabel_batch(batch, rows, columns)
         self.last_steps = steps
 
+
+# From the Natural and Robust Walking paper. Called from custom_trainer.py
+# on every worker 0 train episode end, not eval. Tracks a smoothed average
+# of worker 0's raw score against threshold; ramps action_cost up once
+# consistently above it (penalize energy now that walking works), back
+# down otherwise.
     def adjust(self, score):
         self.score_avg = self.alpha * self.score_avg + (1 - self.alpha) * score
         if self.score_avg > self.threshold and self.cdt_avg < 0.5:
@@ -80,6 +85,9 @@ class AdaptiveEnergyBuffer(Buffer):
             "train/energy_buffer/action_cost_intern", self.action_cost
         )
 
+#every sampled batch gets reward -= action_cost*cost.
+#FYI: this happens only at sampling time and not when the transition is stored. 
+#Same stored transition could be relabeled differently bc action_cost changes over training.
     def _relabel_batch(self, batch, rows, columns):
         cost = self.action_cost * self._get_cost(batch["next_observations"])
         batch["rewards"] = batch["rewards"] - cost
@@ -88,18 +96,20 @@ class AdaptiveEnergyBuffer(Buffer):
         )
         return batch
 
+
+#reads activations from the tail of the observation vector and calculates energy cost
     def _get_cost(self, observations):
         """
         Muscle activity is assumed to be the last observation in the state!
         """
-        acts = observations[:, -self.num_acts :]
+        acts = observations[:, -self.num_acts :]  #tail
         if self.cost_function == 0:
             return 4.0 * np.sum([np.power(acts, k) for k in range(1, 5)])
         if self.cost_function == 1:
             return 4.0 * np.mean([np.power(acts, k) for k in range(1, 5)])
         if self.cost_function == 2:
             return np.mean(np.power(acts, 3))
-        if self.cost_function == 3:
+        if self.cost_function == 3:  #default
             return np.sum(np.power(acts, 3))
         if self.cost_function == 4:
             return -np.sum(np.exp(-5 * acts))

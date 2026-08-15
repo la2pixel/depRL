@@ -17,6 +17,18 @@ def train(
     """
     tonic_conf = config["tonic"]
 
+    # A name without the "lalitha/" prefix lands directly under
+    # scone_results/live/ instead of live/lalitha/<group>/, crowding the
+    # shared top level again (see the 2026-08-11 reorg). Warn, don't block,
+    # since a one-off/non-LEAPS run may do this on purpose.
+    _run_name = str(tonic_conf.get("name", ""))
+    if _run_name and not _run_name.startswith("lalitha/"):
+        print(
+            f"WARNING: tonic.name '{_run_name}' does not start with 'lalitha/', "
+            "results will land under scone_results/live/ directly, not "
+            "live/lalitha/<group>/. Prefix with 'lalitha/<group>/' unless intentional."
+        )
+
     # Run the header first, e.g. to load an ML framework.
     if "header" in tonic_conf:
         exec(tonic_conf["header"])

@@ -10,6 +10,18 @@ from deprl.utils import load_checkpoint
 from deprl.vendor.tonic import logger
 
 
+SCONE_RESULTS_DIR = "/media/calc_2/scone_results/live"
+
+
+def resolve_scone_path(path):
+    """Lets --path be given relative to SCONE_RESULTS_DIR."""
+    if path is None or os.path.exists(path):
+        return path
+    candidate = os.path.join(SCONE_RESULTS_DIR, path)
+
+    return candidate if os.path.exists(candidate) else path
+
+
 def set_scone_save_path(checkpoint_path, env, name):
     prefix = env.results_dir
     if checkpoint_path.startswith(prefix):
@@ -29,6 +41,13 @@ def set_scone_save_path(checkpoint_path, env, name):
 
 
 def check_args(args):
+    # Resolve against SCONE_RESULTS_DIR first, so the checks below and the
+    # eventual load_checkpoint call see a real path either way.
+    if args["path"] is not None:
+        args["path"] = resolve_scone_path(args["path"])
+    if args["checkpoint_file"] is not None:
+        args["checkpoint_file"] = resolve_scone_path(args["checkpoint_file"])
+
     if args["path"] is None and args["checkpoint_file"] is None:
         raise Exception(
             "You need to specify either a <--path> or a <--checkpoint_file>"

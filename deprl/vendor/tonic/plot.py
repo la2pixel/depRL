@@ -14,6 +14,19 @@ from matplotlib import gridspec, lines
 
 from deprl.vendor.tonic import logger
 
+# Duplicated from deprl/play.py, not imported: this file is a vendored
+# copy of tonic and doesn't import from the rest of deprl.
+SCONE_RESULTS_DIR = "/media/calc_2/scone_results/live"
+
+
+def resolve_scone_path(path):
+    """Lets a --paths entry be given relative to SCONE_RESULTS_DIR.
+    Same logic as play.py::resolve_scone_path, kept in sync manually."""
+    if path is None or os.path.exists(path):
+        return path
+    candidate = os.path.join(SCONE_RESULTS_DIR, path)
+    return candidate if os.path.exists(candidate) else path
+
 
 def smooth(vals, window):
     """Smooths values using a sliding window."""
@@ -285,6 +298,7 @@ def plot(
     dpi,
     title,
     fig,
+    out_dir="/home/nadinebadie/lalitha/renders",
 ):
     """Plots results from experiments and benchmark data."""
 
@@ -470,11 +484,15 @@ def plot(
                 name = "results"
             else:
                 name = envs[0]
+        # Anchored to out_dir now instead of the old bare
+        # `name + "." + save_format`, which saved to whatever cwd happened
+        # to be when this was run and made plots hard to find again.
+        os.makedirs(out_dir, exist_ok=True)
         for save_format in save_formats:
-            file_name = name + "." + save_format
+            file_name = os.path.join(out_dir, name + "." + save_format)
             fig.savefig(file_name, facecolor=fig.get_facecolor(), dpi=dpi)
             print(file_name)
-        print("to", os.getcwd())
+        print("to", out_dir)
 
     return fig
 
@@ -509,7 +527,12 @@ def main():
     parser.add_argument("--backend", default=None)
     parser.add_argument("--dpi", type=int, default=150)
     parser.add_argument("--title")
+    parser.add_argument("--out_dir", default="/home/nadinebadie/lalitha/renders")
     args = parser.parse_args()
+
+    # Lets --paths be given relative to SCONE_RESULTS_DIR, e.g. just
+    # "sconewalk_h0918_latent6/260713.114210.h0918".
+    args.paths = [resolve_scone_path(p) for p in args.paths]
 
     # Backend selection, e.g. agg for non-GUI.
     has_gui = True
