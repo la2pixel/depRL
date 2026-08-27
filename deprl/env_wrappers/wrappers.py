@@ -9,6 +9,11 @@ from deprl.vendor.tonic import logger
 
 class AbstractWrapper(gym.Wrapper, ABC):
     def merge_args(self, args):
+        # Verified 2026-08-19 (LEAPS audit): this setattr targets the exact
+        # same attribute names GaitGym.__init__ unpacks rew_keys/clip_actions
+        # into (self.vel_coeff, self.clip_actions, ...), and both are read
+        # fresh every step/reward call -- so a config's env_args genuinely
+        # overrides the registration-time defaults, not silently ignored.
         if args is not None:
             for k, v in args.items():
                 setattr(self.unwrapped, k, v)

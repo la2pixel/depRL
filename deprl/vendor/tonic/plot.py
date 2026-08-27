@@ -469,9 +469,14 @@ def plot(
         fig.canvas.draw()
         renderer = ax.figure.canvas.get_renderer()
         h_packer = legend.get_children()[0].get_children()[1]
-        target_width = h_packer.get_extent(renderer)[0]
+        # get_extent() was removed from matplotlib's offsetbox classes in a
+        # later release than this vendored code was written against (still
+        # present in 3.5.x, gone by 3.9.x, which is what the `lalitha` conda
+        # env actually runs) -- get_window_extent().width is the same
+        # relative pixel-width metric this fit-check needs.
+        target_width = h_packer.get_window_extent(renderer).width
         current_width = sum(
-            [ch.get_extent(renderer)[0] for ch in h_packer.get_children()]
+            [ch.get_window_extent(renderer).width for ch in h_packer.get_children()]
         )
         if target_width > 1.3 * current_width:
             break

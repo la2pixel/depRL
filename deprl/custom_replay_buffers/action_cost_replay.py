@@ -17,7 +17,7 @@ class AdaptiveEnergyBuffer(Buffer):
         self.alpha = kwargs.pop("alpha", 0.8)
         # performance threshold that needs to be achieved
         self.threshold = kwargs.pop("threshold", 1000)
-        # initial learning rate for the energy cost
+        # initial lr for the energy cost
         self.lr = kwargs.pop("lr", 9e-4)
         # how much the learning rate decreased after a collapse
         self.lr_decimation = kwargs.pop("lr_decimation", 0.9)
@@ -102,6 +102,14 @@ class AdaptiveEnergyBuffer(Buffer):
         """
         Muscle activity is assumed to be the last observation in the state!
         """
+        # Verified 2026-08-19 (LEAPS audit): checked directly against
+        # sconegym's GaitGym._get_obs_2d/_get_obs_3d -- both concatenations
+        # end with muscle_activation_array(), so this tail slice is correct
+        # for h0918/h1622/h2190 (num_acts=18/22/90 matches actuator count in
+        # every config). Also reads the post-step SIMULATOR observation, not
+        # the raw policy action, so it's blind to and unaffected by anything
+        # in LatentActionPriorWrapper (z_u/a_full/a_hat) -- same cost for
+        # every category by construction, not just in practice.
         acts = observations[:, -self.num_acts :]  #tail
         if self.cost_function == 0:
             return 4.0 * np.sum([np.power(acts, k) for k in range(1, 5)])
